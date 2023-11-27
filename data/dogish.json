@@ -1,0 +1,299 @@
+{
+    "name": "dogish",
+    "spriteWidth": 32,
+    "spriteHeight": 32,
+    "stepDist": 0.0,
+    "stepHeight": 0.0,
+    "spritesheets": [
+        {
+            "id": 1,
+            "origFilename": "/Users/dmk/code/AliasGarden/Assets/Resources/dogish.png",
+            "texStr": "iVBORw0KGgoAAAANSUhEUgAAAyAAAAAgCAYAAADqmBz1AAAJGElEQVR4Ae2dvZIdNRBGvRQpETEUGSGZqyiHPIAzZyS8ATmhc96AhMwZD0DooorMIRkFMREPsKwW91qjO9J0t1ozV3eOq7Y0P1J/rSPNjL6de713z/h3KIHXL5/fSwI//PL7nWyPLI/QHNkfYu9L4MdXL57mbK78/Zu3u8xf9OGfzzvZZv7tc/0Jb0oIQAACPQR2WTD0JHjrbXMzIH0dZUT21JK+UN4OgdrCv+zhqIUg+uvGA/5LAsw/jMhyRrAHAQhcIwEMyBWMSjIGf/7z72MmX3z6yVNGUUYkNx65TlT8p4TZuEkC2oV/2fnIhaA1h0jt1C/0deZH5gD8Y03A0fNPxpUSAhCAQBQBDEgUyY44uQGRMLkRkWM9pRgPiZHiY0CEBmWNgHXhU8bpXYiib1v4w39JgPkXa4SWdNmDAAQg4CeAAfGzC2u5ZkAkeK8RKY1HHhcDIjTmKmuL8t7FVkmhplPW29r35oV+n/mQcYG/bxF+9vkn84cSAhCAwAgCH48ISkw7gWQ0SrPQaz5SFqPi2nt4Oy1qCxPvQk9DpqaZt83r9OaSx8o1PNspVm8+Hl3aQAAC8QRq9wau8XjWRITALRPgDciVjG75FiTCfORdy81Nis3bj5yObrv24C1bRz+ItbpReXj1Sv1y38IlOgeLdsob/Zi3LzIH4G97C3P0/JNxy0ttTtaxzjXYhgAEzkMAA3IlY50bkGjzIV0UExJhQNYeRns+eEr9kdqllvDcKntz8uqWeVnyiNIsc5B9TS6jctBopzzRjzUflrGH//HzT8ZLSu/1oL3eRIcSAhA4F4GPztVdU2/T3zrIf0yNi7arfzdhLeAo85G0ImKnh1HtgdQ6t9ZXz7GaRu24RyNvU+trXqe2fVTbMp+ePMpY7EMAAuch0HPv6Gl7HsL0FALnJcAbkPWxv3/4tzhzd/eISsvL3D69AVkIDt6xfgTL8zCJ/A2YVT9C26pZGzJrLlG6ZT5beYzSteQxOoejGaDf/igS4z/m7ZNcg1vzT+qlMmosLJq5PtsQgMD+BKKu+1rm+f2AL6FfUrowD6lKMiQPJiSZhC0T4mqfDMFeJmQP85GYpYmcT7Z0zPPPc0FEaXvypQ0EIAABCIwjUD4TIp4zlmzRXxpl+Ld/sWKZW5q6I+bfq68+u//6y8818l118rUZBmSJcmEe3r/1eDQfqZrChPS2X2bD3mEEygu8J5H8gtuKE6lbalnyKNuyDwEInIdA5H0o8r5Ty0uOj14Ii045E+Q4+mMX4sIZ/ksCwsU7/5L5WEYcu5fyTblO+x2Qn7/75r78iUQm5iPFzLe1GnmbfFvb/lrqycT25nNk+15tb59nbLcnq5pW7Xgkz5ZG61xUDi2N1jn0Ywi0GLfOxai3P9Z0tH5UH0fF0fDR1PHmp4mtqYO+j4CGraaOT7197UrMGfXFfOzx9kM4pTKxms6AiOnIOyLbrXNShxICWwRG3EQ0MTV1tnLfOr+HxlYOnIcABK6XwIh7xIiY10uQzCAwBwExH0dlO40BsZgLS90a+PRxK/mXb8uxrTJvk29vtbum81EPDW8cb7ucYUSMPB7bEIAABCCwLwHLfdxSV9sLS0xLXfR1BCxMLXV16rq3HxJrRv29334IqykMSDIUkrCldLR7+LTUh++YJ+OQm4f35z5UuEymt/1lRI5AAAIQgAAEIAABCEDghgj0GJBkCvKfW8GyMBHSKYX5yKpeehRDe4lDCQEIQAACEIAABCAAgWEEfvvjr2GxW4G9BmTtjcTasZa26pzjLcYirrP9owlJpkF+HoJeuoqF0mKnt/0iGDsQgAAEIAABCEAAAhCIIvDm3d+WdW2U7FMcjwFpGY3WuSfRSTbSwOQ/1rTztocOsjVxqe/9L92kvZTeON52opvKiBh5PLYhAAEIQGBfApb7uKWutheWmJa66OsIWJha6urUbeuI2fTFhOz9FiRxshoQjcHQ1FGNu/PtxUXsqDgXgTlwkwSOuoGM0C0HaA+NUpN9CEBgHgIj7hEjYs5DlEwhcN0ExITslaXcD6wGZK/8Tqlj/QvlHkhWDZkoHq3U5sj2vdrePs/Ybk9WNa3a8UieLY3WuagcWhqtc+jHEGgxbp2LUW/fD4/Wj+rjqDgaPpo63vw0sTV10PcR0LDV1PGpt69diTmzfjIhI/NfY8RfQhcqlBDICKQLMeq/07Nc1JG6WXceNy15lG3ZhwAEzkMg8j4Ued+RWOW9WY6PHiHRQf/F4pMuwgX+YwkI55HzTzTG9uT/6BiQPShPrpEmZDnhNV2Kmsge/ShtTT+pAwEIQAAC+xE4+v6O/ttDv9cK/2P5R13pnkm0cL4riXhiroR59izyuxvf/vRrWF6ryQYefP3y+RZjl5r141drIhojMvLmsKUfrb2lt8YoP+bNp1c3zyFta/OI1vXkMSqHoxmgr3toMv7L3y6X15B3Xzv/8vi9Y+HRzPXZhgAEbpeA5zsgrYV865yZYpRpiIpj7sANNkgPlNpDpXUuCkVNo3a8V7fWV03co9qWufXkUcZiHwIQOA+BnntHT9vzEKanEDgvgR7DUP6WvidWdQQi3oLMaECi34JEvP2oDtJJTmh/Gxj94NXqlsPgzcOrV+qX+5Z8onOwaKe80Y/9LTz8dW9/5Jo5ev5JHnmpzck61rkG2xCAwHkIDDEN0fh6TMiM5kP4RZkQzIcQjSlrD+KRD96aZq1HvblY9Wp5yHFPPlE5eLRT3ujHmBD428yHXDNHzz/JoyxreXnHuYzPPgQgcA4CfAn9HONMLwMJHPGgzTX3WAAkvZqOFWWeu7Ut9SEAgesiwPV8XeNBNhCYlcAUb0ASXM9bkJnffsiE6n0LwtsPIUnpIdBrQnoXK+j3vYWAv+/tg1wrZ59/woESAhCAQDSBaQyIdFxjRG7BeEh/pbQaEYyHkKPsJeBdhPUufvO8rTlEaqc80LcZIfj3GZ987l/D/CvzYR8CEIBAL4HpDIh0eM2I3KLxkP6mUmtCMB85NbajCGgX4dGLT8kffZ0JgH/s4p/5JwQoIQABCMQRmNaAxCGYL1LNiGA85hvLGTOuGYFRC9+SEfrrRgT+Y4wH868kwD4EIACBfgL/AcvVhyvd3jlvAAAAAElFTkSuQmCC"
+        }
+    ],
+    "segments": [
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 0,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 1,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 1,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 2,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 3,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 4,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 4,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 4,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 4,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 7,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 7,
+            "yOffset": 1.0058823823928834,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 8,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 8,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 8,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 8,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 8,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 8,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 8,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 8,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 8,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 6,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 6,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 5,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 5,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 17,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 17,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 17,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 17,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 17,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 17,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 17,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 17,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        },
+        {
+            "spritesheetId": 1,
+            "spritesheetRow": 0,
+            "spritesheetCol": 17,
+            "yOffset": 1.0,
+            "distBefore": 0.20000000298023225
+        }
+    ],
+    "limbs": [
+        {
+            "segIdx": 10,
+            "hipOutDist": 0.38823527097702029,
+            "hipDownDist": 0.04411764442920685,
+            "kneeOutDist": 0.1147058829665184,
+            "kneeDownDist": 0.47647058963775637,
+            "footOutDist": 0.07058823108673096,
+            "footLength": 0.20000000298023225,
+            "poleTargetAngle": 45.0,
+            "thighWidth": 0.5,
+            "shinWidth": 0.5,
+            "footWidth": 0.5,
+            "stepDistance": 0.0,
+            "stepHeight": 0.0,
+            "stepSpeed": 0.0,
+            "thighSpritesheetId": 1,
+            "thighSpritesheetRow": 0,
+            "thighSpritesheetCol": 24,
+            "shinSpritesheetId": 1,
+            "shinSpritesheetRow": 0,
+            "shinSpritesheetCol": 24,
+            "footSpritesheetId": 1,
+            "footSpritesheetRow": 0,
+            "footSpritesheetCol": 24
+        },
+        {
+            "segIdx": 18,
+            "hipOutDist": 0.5,
+            "hipDownDist": 0.0,
+            "kneeOutDist": 0.0,
+            "kneeDownDist": 0.5,
+            "footOutDist": 0.0,
+            "footLength": 0.20000000298023225,
+            "poleTargetAngle": 65.0,
+            "thighWidth": 0.5,
+            "shinWidth": 0.5,
+            "footWidth": 0.5,
+            "stepDistance": 0.0,
+            "stepHeight": 0.0,
+            "stepSpeed": 0.0,
+            "thighSpritesheetId": 1,
+            "thighSpritesheetRow": 0,
+            "thighSpritesheetCol": 24,
+            "shinSpritesheetId": 1,
+            "shinSpritesheetRow": 0,
+            "shinSpritesheetCol": 24,
+            "footSpritesheetId": 1,
+            "footSpritesheetRow": 0,
+            "footSpritesheetCol": 24
+        }
+    ]
+}
