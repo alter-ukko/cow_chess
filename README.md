@@ -25,7 +25,7 @@ At the moment, I don't think `cow_chess` works on Windows. To make that work, I'
 
 * [stb](https://github.com/nothings/stb) (used to load png spritesheet)
 * [cimgui](https://github.com/cimgui/cimgui) (used for ui)
-* [sokol] (https://github.com/floooh/sokol) (used for cross-platform graphics, sound, windowing, input, etc.)
+* [sokol](https://github.com/floooh/sokol) (used for cross-platform graphics, sound, windowing, input, etc.)
 
 All of these libraries are incredible.
 
@@ -33,8 +33,8 @@ I got a lot of information about how to do things from [c-chess-cli](https://git
 
 Other utility code I'm using from source:
 
-* (AHEasing)[https://github.com/warrenm/AHEasing/] (easing functions for sprite movement)
-* (uthash)[https://github.com/troydhanson/uthash] (dynamic arrays)
+* [AHEasing](https://github.com/warrenm/AHEasing) (easing functions for sprite movement)
+* [uthash](https://github.com/troydhanson/uthash) (dynamic arrays)
 
 Both of these are awesome and part of my standard toolbox when I make things with C.
 
