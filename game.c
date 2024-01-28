@@ -3,6 +3,7 @@
 #include <math.h>
 #include <dirent.h>
 #include <stdbool.h>
+#include <unistd.h>
 
 #ifdef __JETBRAINS_IDE__
 #define SOKOL_IMPL
@@ -21,6 +22,7 @@
 #include "sokol_app.h"
 #include "sokol_gfx.h"
 #include "sokol_glue.h"
+#include "sokol_time.h"
 
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #include "cimgui.h"
@@ -34,113 +36,41 @@
 #include "HandmadeMath.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb/stb_image_write.h"
-#include "jsmn.h"
-#include "misc_util.h"
+
+typedef HMM_Mat4 hmm_mat4;
+
 #include "game.glsl.h"
 #include "utarray.h"
-#include "IconsFontAwesome5.h"
-#include "map_defs.h"
-#include "tile_defs.h"
+//#include "map_defs.h"
+#include "uci.h"
+#include "str.h"
+#include "chess_types.h"
+#include "moves.h"
+#include "easing.h"
+#include "data.h"
 
-#define BLK_VL 0
-#define BLK_H 1
-#define BLK_VR 2
-#define BLK_VBL 3
-#define BLK_VBR 4
-#define BLK_VC 5
-#define BLK_HV 6
-#define FLOOR_1 7
-#define FLOOR_2 8
-#define FLOOR_3 9
-#define FLOOR_4 10
-#define BELT_LT 16
-#define BELT_LR 17
-#define BELT_LB 18
-#define BELT_RT 19
-#define BELT_TB 20
-#define BELT_RB 21
-#define BELT_LTB 22
-#define BELT_LRT 23
-#define BELT_RTB 24
-#define BELT_LRB 25
-#define BELT_LRTB 26
-#define SPLT_LTB 32
-#define SPLT_LRT 33
-#define SPLT_RTB 34
-#define SPLT_LRB 35
-#define SPLT_LRTB 36
-#define OUT_L 37
-#define OUT_T 38
-#define OUT_R 39
-#define OUT_B 40
-#define IN_L 41
-#define IN_T 42
-#define IN_R 43
-#define IN_B 44
+#if defined(__APPLE__)
+const uint32_t MODIFIER_KEY = SAPP_MODIFIER_SUPER;
+#else
+const uint32_t MODIFIER_KEY = SAPP_MODIFIER_CTRL;
+#endif
 
-#define ARROW_BL 48
-#define ARROW_BR 64
-#define ARROW_BT 80
-#define ARROW_LB 96
-#define ARROW_LR 112
-#define ARROW_LT 128
-#define ARROW_RB 144
-#define ARROW_RL 160
-#define ARROW_RT 176
-#define ARROW_TB 192
-#define ARROW_TL 208
-#define ARROW_TR 224
-
-const uint32_t num_quads = 150000;
+const uint32_t num_quads = 100000;
 const uint32_t num_verts = num_quads * 4;
 const uint32_t num_indices = num_quads * 6;
-uint32_t frame_num;
-
-static uint32_t alt_img_id = 0;
-static float icon_uv_w;
-static float icon_uv_h;
-static ImFont *reg_font;
-static ImFont *icon_font;
-
-/*
-typedef struct {
-    int len;
-    int tiles[NUM_TILES];
-} tile_list;
+const double move_time_ms = 500.0;
 
 typedef struct {
-    int32_t tile_idx;
-    int32_t entropy;
-    tile_list poss;
-} grid_loc;
+    v2i pos;
+    int tile_id;
+} tp;
 
 typedef struct {
-    int grid_w;
-    int grid_h;
-    grid_loc *locs;
-} grid;
-
-// a place to keep a list of grid locations
-// with the same entropy.
-typedef struct {
-    int len;
-    int *loc_indices;
-} entropy_list;
-
-typedef struct {
-    int idx;
-    uint32_t sides[4];
-} tile;
-*/
-
-enum Side {
-    TopSide,
-    RightSide,
-    BottomSide,
-    LeftSide,
-};
+    int tile_id;
+    float x, y;
+    int doing;
+    int frame;
+} obj_g;
 
 typedef struct {
     float x, y, z;
@@ -164,16 +94,19 @@ typedef struct {
     bool left;
     bool right;
     bool esc;
+    bool paste;
+    bool zoom_in;
+    bool zoom_out;
+    float scroll_amt;
+    bool mouse_down;
+    float mx, my;
+    uint64_t md_time;
+    uint64_t mu_time;
+    bool mouse_clicked;
+    float mdx, mdy;
+    float mcx, mcy;
+    v2i tile_clicked;
 } input_g;
-
-enum heading {
-    Backward,
-    Forward,
-    Right,
-    Left,
-    Up,
-    Down
-};
 
 const u_int32_t DN = 0;
 const u_int32_t DL = 0x00000001;
@@ -181,12 +114,12 @@ const u_int32_t DU = 0x00000002;
 const u_int32_t DR = 0x00000004;
 const u_int32_t DD = 0x00000008;
 
-const u_int32_t RED = 0xFF0000FF;
-const u_int32_t GREEN = 0xFF00FF00;
-const u_int32_t BLUE = 0xFFFF0000;
-const u_int32_t PURPLE = 0xFFFF007F;
-const u_int32_t CYAN = 0xFFFFFF00;
-const u_int32_t YELLOW = 0xFF00FFFF;
+typedef enum {
+    AWAITING_MOVE,
+    MOVING_PLAYER,
+    MOVING_OPPONENT,
+    CHECKMATE,
+} GameStatus;
 
 static struct {
     int screen_w;
@@ -195,11 +128,10 @@ static struct {
     sg_pass_action pass_action;
     sg_pipeline pip;
     sg_bindings bind;
-    float cang;
-    float cdist;
     float cx, cy;
-    hmm_v3 cpos;
-    hmm_mat4 mvp;
+    HMM_Vec3 cpos;
+    HMM_Mat4 mvp;
+    float sprites_across;
     vertex_g *verts;
     uint16_t *indices;
     uint32_t vidx;
@@ -211,248 +143,34 @@ static struct {
     int sprite_size;
     int sprite_cols;
     int sprite_rows;
-    t_tile *tiles;
-    int *tile_idxs;
-    //grid g;
-    //entropy_list elist;
+    uci_client client;
+    bool white_move;
+    move_t cur_move;
+    game_t game;
+    GameStatus status;
+    uint64_t delta_time;
+    uint64_t event_time;
+    bool player_is_black;
+    char *opening_buf;
 } state;
-
-/*
-void set_tile_bools_to_all(bool tb[NUM_TILES]) {
-    for (int ti=0; ti<NUM_TILES; ti++) {
-        tb[ti] = true;
-    }
-}
-
-void set_tiles_to_all(tile_list *tl) {
-    if (tl->len == NUM_TILES) return;
-    tl->len = NUM_TILES;
-    for (int ti=0; ti<NUM_TILES; ti++) {
-        tl->tiles[ti] = ti;
-    }
-}
-
-void set_tiles_to_none(tile_list *tl) {
-    tl->len = 0;
-}
-
-// Get the set of tiles that a grid location could be given the constraints
-// of one of its adjacent locations.
-void get_possible_tiles(grid *g, int x, int y, enum Side side, bool tile_bools[NUM_TILES]) {
-    int dx = x;
-    int dy = y;
-    int dside = 0;
-    switch (side) {
-        case TopSide: {
-            dy--;
-            dside = BottomSide;
-            break;
-        }
-        case RightSide: {
-            dx++;
-            dside = LeftSide;
-            break;
-        }
-        case BottomSide: {
-            dy++;
-            dside = TopSide;
-            break;
-        }
-        case LeftSide: {
-            dx--;
-            dside = RightSide;
-            break;
-        }
-    }
-    if ((dx < 0) || (dx >= g->grid_w) || (dy < 0) || (dy >= g->grid_h)) {
-        set_tile_bools_to_all(tile_bools);
-        return;
-    }
-    int didx = (dy * g->grid_w) + dx;
-    int dlen = g->locs[didx].poss.len;
-    // if the grid location we're comparing to can be any tile, we can too
-    if (dlen == NUM_TILES) {
-        set_tile_bools_to_all(tile_bools);
-        return;
-    }
-    for (int i=0; i<dlen; i++) {
-        int tidx = g->locs[didx].poss.tiles[i];
-        uint32_t match = tiles[tidx].sides[dside];
-        for (int j=0; j<NUM_TILES; j++) {
-            if (tiles[j].sides[side] == match) {
-                tile_bools[j] = true;
-            }
-        }
-    }
-}
-
-int32_t update_grid_loc(grid *g, int x, int y) {
-    int idx = (y * g->grid_w) + x;
-    bool tbt[NUM_TILES] = { 0 };
-    bool tbr[NUM_TILES] = { 0 };
-    bool tbb[NUM_TILES] = { 0 };
-    bool tbl[NUM_TILES] = { 0 };
-    // find the possible tiles on each side
-    get_possible_tiles(g, x, y, TopSide, tbt);
-    get_possible_tiles(g, x, y, RightSide, tbr);
-    get_possible_tiles(g, x, y, BottomSide, tbb);
-    get_possible_tiles(g, x, y, LeftSide, tbl);
-    // the final list will be the intersection of the lists from the sides
-    int cnt = 0;
-    for (int i=0; i<NUM_TILES; i++) {
-        if (tbt[i] && tbr[i] && tbb[i] && tbl[i]) {
-            g->locs[idx].poss.tiles[cnt] = i;
-            cnt++;
-        }
-    }
-    g->locs[idx].poss.len = cnt;
-    g->locs[idx].entropy = cnt; // this could be weighted
-    // if there's only one possibility left, we've resolved the grid location
-    if (cnt == 1) g->locs[idx].tile_idx =  g->locs[idx].poss.tiles[0];
-    return g->locs[idx].entropy;
-}
-
-int32_t get_min_entropy(grid *g, entropy_list *el) {
-    int32_t min_entropy = NUM_TILES * 1000; // todo: fix this - it's arbitrary
-    int cnt = 0;
-    int num_locs = g->grid_w * g->grid_h;
-    int i;
-    for (i=0; i<num_locs; i++) {
-        if (g->locs[i].entropy > 1 && g->locs[i].entropy < min_entropy) {
-            min_entropy = g->locs[i].entropy;
-        }
-    }
-    for (i=0; i<num_locs; i++) {
-        if (g->locs[i].entropy == min_entropy) {
-            el->loc_indices[cnt] = i;
-            cnt++;
-        }
-    }
-    el->len = cnt;
-    return min_entropy;
-}
-
-int count_undecided(grid *g) {
-    int cnt = 0;
-    int num_locs = g->grid_w * g->grid_h;
-    for (int i=0; i<num_locs; i++) {
-        if (g->locs[i].entropy > 1) {
-            cnt++;
-        }
-    }
-    return cnt;
-}
-
-void collapse_some_wave_functions() {
-    int undecided_locs = (state.g.grid_w * state.g.grid_h);
-    int iter_cnt = 0;
-    while (undecided_locs > 0) {
-        // get the minimum entropy and choose a grid loc with that entropy
-        int32_t min_entropy = get_min_entropy(&state.g, &state.elist);
-        int idx_to_collapse = (state.elist.len == 1) ? state.elist.loc_indices[0] : state.elist.loc_indices[(rand() % state.elist.len)];
-
-        // update the chosen tile with its decided information
-        int poss_len = state.g.locs[idx_to_collapse].poss.len;
-        int *poss_tiles = state.g.locs[idx_to_collapse].poss.tiles;
-        int tile_idx = (poss_len == 1) ? state.g.locs[idx_to_collapse].poss.tiles[0] : state.g.locs[idx_to_collapse].poss.tiles[(rand() % poss_len)];
-        state.g.locs[idx_to_collapse].tile_idx = tile_idx;
-        state.g.locs[idx_to_collapse].entropy = 1;
-        state.g.locs[idx_to_collapse].poss.len = 1;
-        state.g.locs[idx_to_collapse].poss.tiles[0] = tile_idx;
-
-        // update the constraints/entropy of the neighboring tiles
-        int x = (idx_to_collapse % state.g.grid_w);
-        int y = (idx_to_collapse / state.g.grid_w);
-        // above
-        int xx = x;
-        int yy = y-1;
-        bool entropy_didnt_change = true;
-        while (yy >= 0 && entropy_didnt_change) {
-            int32_t entropy_before = state.g.locs[(yy * state.g.grid_w)+xx].entropy;
-            if (entropy_before == 1) break;
-            int32_t entropy_after = update_grid_loc(&state.g, xx, yy);
-            entropy_didnt_change = (entropy_before == entropy_after);
-            yy--;
-        }
-        // right
-        xx = x+1;
-        yy = y;
-        entropy_didnt_change = true;
-        while (xx < state.g.grid_w && entropy_didnt_change) {
-            int32_t entropy_before = state.g.locs[(yy * state.g.grid_w)+xx].entropy;
-            if (entropy_before == 1) break;
-            int32_t entropy_after = update_grid_loc(&state.g, xx, yy);
-            entropy_didnt_change = (entropy_before == entropy_after);
-            xx++;
-        }
-        // below
-        xx = x;
-        yy = y+1;
-        entropy_didnt_change = true;
-        while (yy < state.g.grid_h && entropy_didnt_change) {
-            int32_t entropy_before = state.g.locs[(yy * state.g.grid_w)+xx].entropy;
-            if (entropy_before == 1) break;
-            int32_t entropy_after = update_grid_loc(&state.g, xx, yy);
-            entropy_didnt_change = (entropy_before == entropy_after);
-            yy++;
-        }
-        // right
-        xx = x-1;
-        yy = y;
-        entropy_didnt_change = true;
-        while (xx >= 0 && entropy_didnt_change) {
-            int32_t entropy_before = state.g.locs[(yy * state.g.grid_w)+xx].entropy;
-            if (entropy_before == 1) break;
-            int32_t entropy_after = update_grid_loc(&state.g, xx, yy);
-            entropy_didnt_change = (entropy_before == entropy_after);
-            xx--;
-        }
-        undecided_locs = count_undecided(&state.g);
-        //printf("iter: %d, undecided: %d\n", iter_cnt, undecided_locs);
-        iter_cnt++;
-    }
-    for (int i=0; i<(state.g.grid_w * state.g.grid_h); i++) {
-        if (state.g.locs[i].tile_idx < 0) {
-            printf("idx: %d, entropy: %d, tile cnt: %d\n", i, state.g.locs[i].entropy, state.g.locs[i].poss.len);
-        }
-    }
-    for (int y=0; y<state.g.grid_h; y++) {
-        for (int x=0; x<state.g.grid_w; x++) {
-            int lidx = (y * state.g.grid_w) + x;
-            int tidx = state.g.locs[lidx].tile_idx;
-            if (tidx >= 0) {
-                printf("tile at %d,%d is: %d %d\n", x, y, state.g.locs[lidx].tile_idx,
-                       tiles[state.g.locs[lidx].tile_idx].idx);
-            }
-        }
-    }
-}
-*/
 
 // x,y: destination coords
 // w,h: width and height of sprite (in tiles)
 // row,col: the row and column of the sprite's bottom right corner
-quad_g make_quad(int x, int y, int w, int h, int row, int col) {
+quad_g make_quad(float x, float y, int w, int h, int row, int col, int layer) {
     uint16_t uvw_unit = (uint16_t)(32768 / state.sprite_cols);
     uint16_t uvh_unit = (uint16_t)(32768 / state.sprite_rows);
     quad_g q;
-    float ww = (float)w;
-    float hh = (float)h;
-    float xx = (float)x;
-    float yy = (float)y;
-    //int16_t uu = (int16_t)(col * 2048);
-    //int16_t vv = (int16_t)(row * 2048);
-    /*
-    q.verts[0] = vertex( xx - ww, yy, 0.0f, YELLOW, (col + w) * uvw_unit, (row + 1) * uvh_unit );
-    q.verts[1] = vertex( xx, yy, 0.0f, YELLOW, col * uvw_unit,  (row + 1) * uvh_unit );
-    q.verts[2] = vertex( xx, yy + hh, 0.0f, YELLOW, col * uvw_unit,  (row - hh + 1) * uvh_unit);
-    q.verts[3] = vertex( xx - ww, yy + hh, 0.0f, YELLOW, (col + w) * uvw_unit, (row - hh + 1) * uvh_unit );
-    */
+    const float ww = (float)w;
+    const float hh = (float)h;
+    const float xx = x;
+    const float yy = y;
+    const float zz = (float)layer * 0.1;
 
-    q.verts[0] = vertex( xx, yy, 0.0f, YELLOW, col * uvw_unit, (row + 1) * uvh_unit );
-    q.verts[1] = vertex( xx + ww, yy, 0.0f, YELLOW, (col + w) * uvw_unit,  (row + 1) * uvh_unit );
-    q.verts[2] = vertex( xx + ww, yy + hh, 0.0f, YELLOW, (col + w) * uvw_unit,  (row - hh + 1) * uvh_unit);
-    q.verts[3] = vertex( xx, yy + hh, 0.0f, YELLOW, col * uvw_unit, (row - hh + 1) * uvh_unit );
+    q.verts[0] = vertex( xx, yy, zz, 0xFFFFFFFF, col * uvw_unit, (row + 1) * uvh_unit );
+    q.verts[1] = vertex( xx + ww, yy, zz, 0xFFFFFFFF, (col + w) * uvw_unit,  (row + 1) * uvh_unit );
+    q.verts[2] = vertex( xx + ww, yy + hh, zz, 0xFFFFFFFF, (col + w) * uvw_unit,  (row - hh + 1) * uvh_unit);
+    q.verts[3] = vertex( xx, yy + hh, zz, 0xFFFFFFFF, col * uvw_unit, (row - hh + 1) * uvh_unit );
 
     q.indices[0] = 0;
     q.indices[1] = 1;
@@ -484,22 +202,27 @@ void add_quad_to_buffer(quad_g q) {
     state.iidx = ii + 6;
 }
 
-hmm_mat4 ortho_camera_mat(hmm_v3 cpos, float pps) {
-    float half_w = ((float)state.screen_w / pps) * 0.5f;
-    float half_h = ((float)state.screen_h / pps) * 0.5f;
-    hmm_v3 cat = HMM_Vec3(state.cx, state.cy, 0.0f);
-    hmm_v3 up = HMM_Vec3(0.0f, 1.0f, 0.0f);
-    hmm_mat4 p_mat = HMM_Orthographic(-half_w, half_w, -half_h, half_h, 1.0f, 200.0f);
-    hmm_mat4 m_mat = HMM_Mat4d(1.0f);
-    hmm_mat4 v_mat = HMM_LookAt(cpos, cat, up);
-    return HMM_MultiplyMat4(HMM_MultiplyMat4(p_mat, v_mat), m_mat);
+HMM_Mat4 ortho_camera_mat(HMM_Vec3 cpos, float pixels_per_sprite) {
+    // If you don't move the camera from the origin (0,0,0), then vmat is the inverse
+    // of the identity matrix, which is the identity matrix. So if you don't move the
+    // camera from the origin, the view-projection matrix is just the projection matrix.
+    // Just a thought. The benefit of not moving the camera is that you don't have
+    // to ever recalculate the view-projection matrix. The drawback is that you have
+    // to translate your sprites every time you draw.
+
+    // HMM_Mat4 identity = HMM_M4D(1.0f);
+    float half_w = ( (float)state.screen_w / pixels_per_sprite) * 0.5f;
+    float half_h = ( (float)state.screen_h / pixels_per_sprite) * 0.5f;
+    HMM_Mat4 p_mat = HMM_Orthographic_RH_ZO(-half_w, half_w, -half_h, half_h, -1.0f, 1.0f);
+    HMM_Mat4 transform = HMM_Translate(cpos);
+    HMM_Mat4 v_mat = HMM_InvOrthographic(transform);
+    return HMM_MulM4(p_mat, v_mat);
 }
 
 void compute_mvp() {
-    //state.cpos = HMM_Vec3(state.cdist * cosf(state.cang), state.cy, state.cdist * sinf(state.cang));
-    state.cpos = HMM_Vec3(state.cx, state.cy, 5.0f);
-    float pps = (float)state.screen_w / 6.0f;
-    state.mvp = ortho_camera_mat(state.cpos, pps);
+    state.cpos = HMM_V3(state.cx, state.cy, 0.0f);
+    float pixels_per_sprite = ((float)state.screen_w / state.sprites_across);
+    state.mvp = ortho_camera_mat(state.cpos, pixels_per_sprite);
 }
 
 void imgui_style() {
@@ -562,24 +285,245 @@ void imgui_style() {
     colors[ImGuiCol_ModalWindowDimBg]       = (ImVec4){0.20f, 0.20f, 0.20f, 0.35f};
 }
 
-static void init(void) {
-    frame_num = 0;
-    srand(4580958);
-    /*
-    state.g.grid_w = 32;
-    state.g.grid_h = 18;
-    state.g.locs = (grid_loc *)malloc(state.g.grid_w * state.g.grid_h * sizeof(grid_loc));
-    state.elist.loc_indices = (int32_t *) malloc(state.g.grid_w * state.g.grid_h * sizeof(int32_t));
+v2i tile_id_to_row_col(int tile_id) {
+    v2i v = {.col = tile_id % state.sprite_cols, .row = tile_id / state.sprite_cols };
+    return v;
+}
 
-    for (int y=0; y<state.g.grid_h; y++) {
-        for (int x=0; x<state.g.grid_w; x++) {
-            int idx = (y*state.g.grid_w) + x;
-            state.g.locs[idx].tile_idx = -1;
-            state.g.locs[idx].entropy = NUM_TILES;
-            set_tiles_to_all(&state.g.locs[idx].poss);
-        }
+void init_board() {
+    copy_board(state.game.board, initial_board);
+}
+
+void clear_move(move_t *m) {
+    m->from.x = -1;
+    m->from.y = -1;
+    m->to.x = -1;
+    m->to.y = -1;
+}
+
+bool moved_from(move_t m) {
+    return (m.from.x >= 0 && m.from.y >= 0);
+}
+
+bool moved_to(move_t m) {
+    return (m.to.x >= 0 && m.to.y >= 0);
+}
+
+void move_rook_if_castle() {
+    if (is_move_castle(state.cur_move)) {
+        // also move the rook
+        v2i rook_from = { .x = (state.cur_move.from.x < state.cur_move.to.x) ? 7 : 0, .y = state.cur_move.from.y };
+        v2i rook_to = { .x = (state.cur_move.from.x < state.cur_move.to.x) ? 5 : 3, .y = state.cur_move.from.y };
+        PieceColor color = color_at(state.game.board, rook_from.x, rook_from.y);
+        int piece_id = (color == WHITE) ? ROOK_W : ROOK_B;
+        set_board(state.game.board, rook_to, piece_id);
+        unset_board(state.game.board, rook_from);
+    }
+}
+
+void remove_pawn_if_en_passant() {
+    if (is_move_en_passant(state.game.board, state.cur_move)) {
+        int dy = (state.cur_move.from.y - state.cur_move.to.y) / abs(state.cur_move.from.y - state.cur_move.to.y);
+        v2i pos = { .x = state.cur_move.to.x, .y = state.cur_move.to.y + dy };
+        unset_board(state.game.board, pos);
+    }
+}
+
+void complete_move(move_t m) {
+    utarray_push_back(state.game.moves, &m);
+    remove_pawn_if_en_passant(); // this has to happen before making the move
+    set_board(state.game.board, m.to, m.piece_id);
+    move_rook_if_castle();
+    PieceColor moved_color = color_at(state.game.board, m.to.x, m.to.y);
+    PieceColor other_color = (moved_color == WHITE) ? BLACK : WHITE;
+    if (is_checkmate(&state.game, other_color)) {
+        state.status = CHECKMATE;
+    }
+}
+
+void complete_cur_move() {
+    if (!moved_from(state.cur_move) && !moved_to(state.cur_move)) return;
+    complete_move(state.cur_move);
+    /*
+    utarray_push_back(state.game.moves, &state.cur_move);
+    remove_pawn_if_en_passant(); // this has to happen before making the move
+    set_board(state.game.board, state.cur_move.to, state.cur_move.piece_id);
+    move_rook_if_castle();
+    PieceColor moved_color = color_at(state.game.board, state.cur_move.to.x, state.cur_move.to.y);
+    PieceColor other_color = (moved_color == WHITE) ? BLACK : WHITE;
+    if (is_checkmate(&state.game, other_color)) {
+        state.status = CHECKMATE;
     }
     */
+    clear_move(&state.cur_move);
+}
+
+void initiate_engine_move() {
+    int alen = utarray_len(state.game.moves);
+    const char *prefix = "position startpos moves ";
+    char cmd[(alen * 5)+26];
+    char *c = cmd;
+    strcpy(c, prefix);
+    c += strlen(prefix);
+    int i = 0;
+    for (move_t *m=(move_t *)utarray_front(state.game.moves); m != NULL; m=(move_t *)utarray_next(state.game.moves, m)) {
+        c[i++] = files[m->from.x];
+        c[i++] = ranks[m->from.y];
+        c[i++] = files[m->to.x];
+        c[i++] = ranks[m->to.y];
+        c[i++] = ' ';
+    }
+    c[i++] = '\n';
+    c[i++] = '\0';
+    printf("%s\n", cmd);
+    fputs(cmd, state.client.out);
+    fflush(state.client.out);
+    fputs("go depth 3\n", state.client.out);
+    fflush(state.client.out);
+    str_t line = str_init();
+    while (true) {
+        str_getline(&line, state.client.in);
+        printf("%s\n", line.buf);
+        if (str_starts_with(line.buf, "bestmove")) break;
+    }
+    const char *emove = str_prefix(line.buf, "bestmove ");
+    if (emove) {
+        move_t m = str_to_move(state.game.board, emove);
+        state.cur_move.piece_id = state.game.board[xy_to_board_idx(m.from.x, m.from.y)];
+        state.cur_move.from.x = m.from.x;
+        state.cur_move.from.y = m.from.y;
+        state.cur_move.to.x = m.to.x;
+        state.cur_move.to.y = m.to.y;
+        unset_board(state.game.board, state.cur_move.from);
+    }
+}
+
+void play_opening(const char *opening_moves_str) {
+    init_board();
+    utarray_clear(state.game.moves);
+    size_t len = strlen(opening_moves_str);
+    char *s = (char *)opening_moves_str;
+    while (s < opening_moves_str+len) {
+        move_t m = str_to_move(state.game.board, s);
+        complete_move(m);
+        unset_board(state.game.board, m.from);
+        s += 5;
+    }
+    state.event_time = 0;
+    int turn = (utarray_len(state.game.moves) % 2) + ((state.player_is_black) ? 2 : 1);
+    clear_move(&state.cur_move);
+    if ((turn % 2) == 0) {
+        // engine's move
+        initiate_engine_move();
+        state.status = MOVING_OPPONENT;
+    } else {
+        // player's move
+        state.status = AWAITING_MOVE;
+    }
+}
+
+void print_piece(Piece p, const char *prefix) {
+    printf("%s ", prefix);
+    switch (p.color) {
+        case WHITE: {
+            printf("WHITE ");
+            break;
+        }
+        case BLACK: {
+            printf("BLACK ");
+            break;
+        }
+        case NO_COLOR: {
+            printf("NO_COLOR ");
+        }
+    }
+    switch (p.type) {
+        case ROOK: {
+            printf("ROOK");
+            break;
+        }
+        case KNIGHT: {
+            printf("KNIGHT");
+            break;
+        }
+        case BISHOP: {
+            printf("BISHOP");
+            break;
+        }
+        case QUEEN: {
+            printf("QUEEN");
+            break;
+        }
+        case KING: {
+            printf("KING");
+            break;
+        }
+        case PAWN: {
+            printf("PAWN");
+            break;
+        }
+        case NO_PIECE: {
+            printf("NO_PIECE");
+            break;
+        }
+    }
+    printf("\n");
+}
+
+void play_test_moves() {
+    init_board();
+    const char *tm[24] = {
+        "e2e4",
+        "e7e6",
+        "b1c3",
+        "f8b4",
+        "c3b5",
+        "d7d5",
+        "f2f3",
+        "d8h4",
+        "e1e2",
+        "h4d8",
+        "d2d4",
+        "d5e4",
+        "f3e4",
+        "a7a6",
+        "c2c3",
+        "b4f8",
+        "a2a4",
+        "e6e5",
+        "g2g4",
+        "c8g4",
+        "g1f3",
+        "a6b5",
+        "a4b5",
+        "a8a1",
+        //"f3e5",
+    };
+    PieceColor pc = WHITE;
+    for (int i=0; i<24; i++) {
+        const char * clr = (pc == WHITE) ? "WHITE" : "BLACK";
+        const char *emove = tm[i];
+        move_t m = {.from = {.x = emove[0] - 97, .y = emove[1] - 49}, .to = {.x = emove[2] - 97, .y = emove[3] - 49}};
+        int fidx = v2i_to_board_idx(m.from);
+        int tidx = v2i_to_board_idx(m.to);
+        Piece from_piece = sprite_to_piece(state.game.board[fidx]);
+        Piece to_piece = sprite_to_piece(state.game.board[tidx]);
+        printf("\n-=-= %s %s (%d,%d)-(%d,%d)\n", clr, emove, m.from.x, m.from.y, m.to.x, m.to.y);
+        print_piece(from_piece, "from_piece: ");
+        print_piece(to_piece, "to_piece: ");
+        utarray_push_back(state.game.moves, &m);
+        state.game.board[tidx] = state.game.board[fidx];
+        state.game.board[fidx] = -1;
+        pc = (pc == WHITE) ? BLACK : WHITE;
+    }
+}
+
+static void init(void) {
+    srand(4580958);
+    stm_setup();
+    state.delta_time = 0;
+    state.event_time = 0;
+    state.opening_buf = malloc(16384);
 
     state.verts = (vertex_g  *)malloc(num_verts * sizeof(vertex_g));
     state.indices = (uint16_t *) malloc(num_indices * sizeof(uint16_t));
@@ -588,18 +532,11 @@ static void init(void) {
     simgui_setup(&(simgui_desc_t){ .no_default_font = true });
     ImGuiIO* io = igGetIO();
 
+    ImFontConfig *fontConfig = ImFontConfig_ImFontConfig();
+    fontConfig->FontDataOwnedByAtlas = false;
 
-    static ImFontConfig config;
-    // #define ICON_MIN_FA 0xe005
-    // #define ICON_MAX_FA 0xf8ff
-
-    static ImWchar icon_ranges[] = { 0x0020, ICON_MAX_FA, 0 };
-    config.FontDataOwnedByAtlas = false;
-    //config.OversampleH = 2;
-    //config.OversampleV = 2;
-    //config.RasterizerMultiply = 1.5f;
-
-    ImFontAtlas_AddFontFromFileTTF(io->Fonts, "/Users/dmk/code/gaem/data/barlow.regular.ttf", 20.0f, NULL, icon_ranges);
+    ImFontAtlas_AddFontFromMemoryTTF(io->Fonts, __barlow_regular_ttf, __barlow_regular_ttf_len, 20.0f, fontConfig, NULL);
+    printf("%d\n", fontConfig->FontNo);
     unsigned char* font_pixels;
     int font_width, font_height;
     int bytes_per_pixel;
@@ -621,6 +558,7 @@ static void init(void) {
     font_desc.image = font_img;
     font_desc.sampler = font_smp;
     io->Fonts->TexID = simgui_imtextureid(simgui_make_image(&font_desc));
+    ImFontConfig_destroy(fontConfig);
     imgui_style();
 
     // initial clear color
@@ -641,9 +579,8 @@ static void init(void) {
         .label = "cube-indices"
     });
 
-    const char *sprite_filename = "/Users/dmk/code/factory/data/sproutlands.png";
     int tw,th,tn;
-    uint8_t *image_data = stbi_load(sprite_filename, &tw, &th, &tn, 0);
+    uint8_t *image_data = stbi_load_from_memory(__chess_png, __chess_png_len, &tw, &th, &tn, 0);
     sg_range pixels = { .ptr = image_data, .size = tw * th * tn * sizeof(uint8_t) };
     // NOTE: SLOT_tex is provided by shader code generation
     state.bind.fs.images[SLOT_tex] = sg_make_image(&(sg_image_desc){
@@ -655,7 +592,7 @@ static void init(void) {
     stbi_image_free(image_data);
     state.spritesheet_w = tw;
     state.spritesheet_h = th;
-    state.sprite_size = 16;
+    state.sprite_size = 15;
     state.sprite_cols = state.spritesheet_w / state.sprite_size;
     state.sprite_rows = state.spritesheet_h / state.sprite_size;
 
@@ -702,39 +639,53 @@ static void init(void) {
         .colors[0] = { .load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.25f, 0.5f, 0.75f, 1.0f } }
     };
 
-    state.cx = 0.0f;
-    state.cy = 0.0f;
-    state.cang = TWO_PI / 4.0f;
-    state.cdist = 7.0717f;
-
+    state.cx = 1;
+    state.cy = 4;
+    state.input.tile_clicked.x = -1;
+    state.input.tile_clicked.y = -1;
+    state.sprites_across = 16.0f;
     compute_mvp();
-    /*
-    collapse_some_wave_functions();
+    init_board();
+    UT_icd move_icd = {sizeof(move_t), NULL, NULL, NULL};
+    utarray_new(state.game.moves, &move_icd);
+    const int move_buf_cap = 1024;
+    state.game.avail = malloc(move_buf_cap * sizeof(v2i));
+    state.game.avail_cap = move_buf_cap;
+    //fork_uci_client("stockfish", &state.client);
+    fork_uci_client("lc0", &state.client);
 
-    const int tt = tm.cols * tm.rows;
-    for (int i=0; i<tm.layers; i++) {
-        const int *layer = tm.map[i];
-        for (int j=0; j<tt; j++) {
-            printf("%d ", layer[j]);
-        }
-        printf("\n");
+    fputs("uci\n", state.client.out);
+    fflush(state.client.out);
+    str_t line = str_init();
+    while (true) {
+        str_getline(&line, state.client.in);
+        printf("%s\n", line.buf);
+        if (str_starts_with(line.buf, "uciok")) break;
     }
-    */
-    state.tiles = create_tiles();
-    int max_tile_id = 0;
-    int i;
-    for (i=0; i<NUM_TILES; i++) {
-        if (state.tiles[i].id > max_tile_id) {
-            max_tile_id = state.tiles[i].id;
-        }
+    // lc0 maia option
+    // fputs("setoption name WeightsFile value /Users/dmk/code/external/maia-chess/maia_weights/maia-1100.pb.gz\n", state.client.out);
+    // fflush(state.client.out);
+    // stockfish skill options
+    // fputs("setoption name UCI_LimitStrength value true\n", state.client.out);
+    // fflush(state.client.out);
+    // fputs("setoption name UCI_Elo value 1320\n", state.client.out);
+    // fflush(state.client.out);
+
+    fputs("ucinewgame\n", state.client.out);
+    fflush(state.client.out);
+    fputs("isready\n", state.client.out);
+    fflush(state.client.out);
+    line = str_init();
+    while (true) {
+        str_getline(&line, state.client.in);
+        printf("%s\n", line.buf);
+        if (str_starts_with(line.buf, "readyok")) break;
     }
-    state.tile_idxs = malloc(max_tile_id * sizeof(int));
-    for (i=0; i<max_tile_id; i++) {
-        state.tile_idxs[i] = -1;
-    }
-    for (i=0; i<NUM_TILES; i++) {
-        state.tile_idxs[state.tiles[i].id] = i;
-    }
+    clear_move(&state.cur_move);
+    state.player_is_black = false;
+    state.white_move = true;
+    state.status = AWAITING_MOVE;
+    //play_test_moves();
 }
 
 u_int32_t input_dir() {
@@ -746,142 +697,211 @@ u_int32_t input_dir() {
     return dir;
 }
 
-void load_json() {
-    const char *json_data = load_file("/Users/dmk/code/game/data/dogish.json");
-    unsigned long json_data_len = strlen(json_data);
-    printf("json data is %ld bytes\n", json_data_len);
-    jsmn_parser p;
-    jsmntok_t t[1024];
-    int ntoks = jsmn_parse(&p, json_data, json_data_len, t, 1024);
-    printf("got %d tokens\n", ntoks);
-    char s[1024*8];
-    for (int i=0; i<ntoks; i++) {
-        switch (t[i].type) {
-            case 1: {
-                printf("%d\tOBJECT\t%d\t%d\n", i, t[i].start, t[i].end);
-                break;
-            }
-            case 2: {
-                printf("%d\tARRAY  \t%d\t%d\n",i, t[i].start, t[i].end);
-                break;
-            }
-            case 4: {
-                printf("%d\tSTRING \t%d\t%d\n",i, t[i].start, t[i].end);
-                int len = (t[i].end - t[i].start);
-                strncpy(s, json_data + t[i].start, len);
-                s[len] = '\0';
-                printf("%s\n",s);
-                break;
-            }
-            case 8: {
-                printf("%d\tPRIMIT \t%d\t%d\n",i, t[i].start, t[i].end);
-                int len = (t[i].end - t[i].start);
-                strncpy(s, json_data + t[i].start, len);
-                s[len] = '\0';
-                printf("%s\n",s);
-                break;
-            }
-            default: {
-                printf("%d\tUNKNOWN \t%d\n", i, t[i].type);
-                break;
-            }
-        }
-    }
-    free((void *)json_data);
+v2i screen_to_tilemap(const float x, const float y) {
+    const float pixels_per_sprite = (float)state.screen_w / state.sprites_across;
+    const float sprites_updown = (float)state.screen_h / pixels_per_sprite;
+    const float sx = state.cx - (state.sprites_across * 0.5f);
+    const float sy = state.cy - (sprites_updown * 0.5f);
+    const float scr_pct_across = x / (float)state.screen_w;
+    // mouse screen coords start at top left and positive Y goes down, so we need to flip
+    const float scr_pct_up = ((float)state.screen_h - y) / (float)state.screen_h;
+    const float tiles_across = sx + (scr_pct_across * state.sprites_across);
+    const float tiles_updown = sy + (scr_pct_up * sprites_updown);
+
+    const v2i v = {.x = floorf(tiles_across), .y = floorf(tiles_updown) };
+    return v;
 }
 
-void find_dirs(DIR *dir, const char *path, size_t pathlen, UT_array *array) {
-    struct dirent *entry;
-    while ((entry = readdir(dir))) {
-        if (entry->d_namlen > 0 && entry->d_type == DT_DIR && entry->d_name[0] != '.') {
-            // 2 is 1 for / and one for terminator
-            size_t namelen = (pathlen + entry->d_namlen + 2) * sizeof(char);
-            char *name = (char *) malloc(namelen);
-            strcpy(name, path);
-            strcat(name, "/");
-            strcat(name, entry->d_name);
-            utarray_push_back(array, &name);
-            DIR *ndir = opendir(name);
-            if (ndir != NULL) {
-                find_dirs(ndir, name, namelen, array);
-                closedir(ndir);
-            }
+bool is_available_move(const game_t *game, v2i pos) {
+    if (game->avail_len == 0) return false;
+    for (int i=0; i<game->avail_len; i++) {
+        if (game->avail[i].x == pos.x && game->avail[i].y == pos.y) {
+            return true;
         }
     }
+    return false;
 }
 
 static void frame(void) {
-    frame_num++;
-    if ((frame_num % 60) == 0) {
-        //printf("item: %d\n", state.build_item_idx);
-        frame_num = 0;
-    }
+    uint64_t lap_time = stm_laptime(&state.delta_time);
+    state.event_time += lap_time;
 	if (state.input.esc) {
+	    printf("escape pressed\n");
 		sapp_request_quit();
 	}
+    /*
+    if (state.input.zoom_in) {
+        state.sprites_across -= 1.0f;
+        if (state.sprites_across < 0.0f) state.sprites_across = 20.0f;
+    }
+    if (state.input.zoom_out) {
+        state.sprites_across += 1.0f;
+        if (state.sprites_across > 200.0f) state.sprites_across = 200.0f;
+    }
+    if (state.input.scroll_amt > 0.01f || state.input.scroll_amt < -0.01f) {
+        state.sprites_across -= state.input.scroll_amt;
+        state.input.scroll_amt = 0.0f;
+    }
     u_int32_t d = input_dir();
     if ((d & DU) == DU) state.cy += 1.0f;
     if ((d & DD) == DD) state.cy -= 1.0f;
     if ((d & DR) == DR) state.cx += 1.0f;
     if ((d & DL) == DL) state.cx -= 1.0f;
+    */
     compute_mvp();
+
+    if (state.input.paste) {
+        printf("pasting...\n");
+        const char *clip = igGetClipboardText();
+        printf("clipboard: %s\n", clip);
+        strcpy(state.opening_buf, clip);
+        state.input.paste = false;
+    }
+    // handle user clicking on the board to move pieces
+    if (state.status == AWAITING_MOVE && state.input.mouse_clicked) {
+        if (state.white_move) {
+            v2i tc = screen_to_tilemap(state.input.mcx, state.input.mcy);
+            if (tc.x >= 0 && tc.x < 8 && tc.y >= 0 && tc.y < 8) {
+                int bidx = xy_to_board_idx(tc.x, tc.y);
+                if (moved_from(state.cur_move) && is_available_move(&state.game, tc)) {
+                    // set end position - start moving piece that player is moving
+                    state.cur_move.piece_id = state.game.board[xy_to_board_idx(state.cur_move.from.x, state.cur_move.from.y)];
+                    state.cur_move.to.x = tc.x;
+                    state.cur_move.to.y = tc.y;
+                    state.input.tile_clicked.x = tc.x;
+                    state.input.tile_clicked.y = tc.y;
+                    state.game.avail_len = 0;
+                    state.status = MOVING_PLAYER;
+                    state.event_time = 0;
+                    unset_board(state.game.board, state.cur_move.from);
+                } else if (state.game.board[bidx] >= 0) {
+                    // printf("calling valid_moves with tile_clicked: %d,%d\n", tc.x, tc.y);
+                    // set start position - select piece that player is moving and calculate available moves
+                    valid_moves(&state.game, tc);
+                    /*
+                    printf("available: %d ", state.game.avail_len);
+                    for (int mi=0; mi<state.game.avail_len; mi++) {
+                        printf(" %d,%d", state.game.avail[mi].x, state.game.avail[mi].y);
+                    }
+                    printf("\n");
+                    */
+                    state.cur_move.from.x = tc.x;
+                    state.cur_move.from.y = tc.y;
+                    state.input.tile_clicked.x = tc.x;
+                    state.input.tile_clicked.y = tc.y;
+                }
+            }
+        }
+        state.input.mouse_clicked = false;
+    }
+
+    if (state.status == MOVING_PLAYER && stm_ms(state.event_time) >= move_time_ms) {
+        // complete player move, select opponent move, and start moving opponent piece
+        complete_cur_move();
+        initiate_engine_move();
+        state.status = MOVING_OPPONENT;
+        state.event_time = 0;
+    } else if (state.status == MOVING_OPPONENT && stm_ms(state.event_time) >= move_time_ms) {
+        // complete opponent move and start awaiting player move
+        complete_cur_move();
+        state.status = AWAITING_MOVE;
+        state.event_time = 0;
+    }
+
     simgui_new_frame(&(simgui_frame_desc_t){
         .width = sapp_width(),
         .height = sapp_height(),
         .delta_time = sapp_frame_duration(),
         .dpi_scale = sapp_dpi_scale(),
     });
-
     /*=== UI CODE STARTS HERE ===*/
     igSetNextWindowPos((ImVec2){10,10}, ImGuiCond_Once, (ImVec2){0,0});
-    igSetNextWindowSize((ImVec2){200, 200}, ImGuiCond_Once);
+    igSetNextWindowSize((ImVec2){400, 200}, ImGuiCond_Once);
     igBegin("test_window", 0, ImGuiWindowFlags_None);
+    /*
     igBeginGroup();
     igRadioButton_IntPtr("walls", &state.build_item_idx, 0);
     igRadioButton_IntPtr("floors", &state.build_item_idx, 1);
     igRadioButton_IntPtr("belts", &state.build_item_idx, 2);
     igEndGroup();
-
-    //igPushFont(font);
-    //igPushFont(reg_font);
-    //if (igButton(ICON_FA_MUSIC "midi", (ImVec2){100.0f, 30.0f})) {
-    //}
-    //if (igButton(ICON_FA_MUSIC "gen", (ImVec2){100.0f, 30.0f})) {
-    //}
-    // igImage(ImTextureID user_texture_id,const ImVec2 size,const ImVec2 uv0,const ImVec2 uv1,const ImVec4 tint_col,const ImVec4 border_col)
-    // igImage((ImTextureID)alt_img_id, (ImVec2){48.0f, 48.0f}, (ImVec2){0.0f, 0.0f}, (ImVec2){1.0f, 1.0f}, (ImVec4){1.0f,1.0f,1.0f,1.0f}, (ImVec4){0.0f,0.0f,0.0f,0.0f});
-    //igColorEdit3("Background", &state.pass_action.colors[0].value.r, ImGuiColorEditFlags_None);
-    //igPopFont();
-    //igShowFontSelector("font selector");
-    // igLabelText("portmidi error", "%d", pm_error);
-    // igLabelText("portmidi in id", "%d", pm_in_id);
-    // igLabelText("portmidi out id", "%d", pm_out_id);
-    //igLabelText("Does this font look any good?", "I have no idea");
-
+    */
+    /*
+    igText("mouse: %0.2f,%0.2f", state.input.mx, state.input.my);
+    igText("scroll: %0.2f", state.input.scroll_amt);
+    */
+    igText("tile clicked: %d, %d", state.input.tile_clicked.x, state.input.tile_clicked.y);
+    igInputText("opening", state.opening_buf, 16384, ImGuiInputTextFlags_EscapeClearsAll, NULL, NULL);
+    if (igButton("play opening", (ImVec2){.x = 120, .y = 40})) {
+        int opening_len = strlen(state.opening_buf);
+        if (opening_len > 0) {
+            play_opening(state.opening_buf);
+        }
+    }
     igEnd();
     /*=== UI CODE ENDS HERE ===*/
 
+    if (state.input.mouse_down) {
+        v2i v = screen_to_tilemap(state.input.mx, state.input.my);
+        //int tile_id = tile_id_at(v.x, v.y);
+    }
 
+    int color = 0;
     state.vidx = 0;
     state.iidx = 0;
-    for (int l=0; l<4; l++) {
-        for (int y=0; y<tm.rows; y++) {
-            for (int x=0; x<tm.cols; x++) {
-                int tidx = (y * tm.cols) + x;
-                int tile_id = tm.map[l][tidx];
-                if (tile_id >= 0) {
-                    /*
-                    if (tile_id != 54) {
-                        printf("%d %d %d\n", x, y, tile_id);
-                    }
-                    */
-                    int real_y = tm.rows - y;
-                    t_tile tile = state.tiles[state.tile_idxs[tile_id]];
-                    int row = tile_id / state.sprite_rows;
-                    int col = tile_id % state.sprite_rows;
-                    add_quad_to_buffer(make_quad(x, real_y, tile.tw, tile.th, row, col));
-                }
-            }
+    for (int y=0; y<8; y++) {
+        color = (y + 1) % 2;
+        for (int x=0; x<8; x++) {
+            const v2i rc = tile_id_to_row_col((color == 0) ? SQUARE_B : SQUARE_W);
+            add_quad_to_buffer(make_quad(x, y, 1, 1, rc.row, rc.col, 0));
+            color = (color + 1) % 2;
+        }
+    }
+    v2i crc = tile_id_to_row_col(FRAME_TL);
+    add_quad_to_buffer(make_quad(-1, 8, 1, 1, crc.row, crc.col, 0));
+    crc = tile_id_to_row_col(FRAME_TR);
+    add_quad_to_buffer(make_quad(8, 8, 1, 1, crc.row, crc.col, 0));
+    crc = tile_id_to_row_col(FRAME_BL);
+    add_quad_to_buffer(make_quad(-1, -1, 1, 1, crc.row, crc.col, 0));
+    crc = tile_id_to_row_col(FRAME_BR);
+    add_quad_to_buffer(make_quad(8, -1, 1, 1, crc.row, crc.col, 0));
+    for (int i=0; i<8; i++) {
+        crc = tile_id_to_row_col(FRAME_T);
+        add_quad_to_buffer(make_quad(i, 8, 1, 1, crc.row, crc.col, 0));
+        crc = tile_id_to_row_col(FRAME_B);
+        add_quad_to_buffer(make_quad(i, -1, 1, 1, crc.row, crc.col, 0));
+        crc = tile_id_to_row_col(FRAME_L);
+        add_quad_to_buffer(make_quad(-1, i, 1, 1, crc.row, crc.col, 0));
+        crc = tile_id_to_row_col(FRAME_R);
+        add_quad_to_buffer(make_quad(8, i, 1, 1, crc.row, crc.col, 0));
+        crc = tile_id_to_row_col(LBL_1 + i);
+        add_quad_to_buffer(make_quad(8, i, 1, 1, crc.row, crc.col, 0));
+        crc = tile_id_to_row_col(LBL_A + i);
+        add_quad_to_buffer(make_quad(i, -1, 1, 1, crc.row, crc.col, 0));
+    }
+    for (int i=0; i<64; i++) {
+        const int piece_id = state.game.board[i];
+        if (piece_id >= 0) {
+            const int xx = i % 8;
+            const int yy = i / 8;
+            crc = tile_id_to_row_col(piece_id);
+            add_quad_to_buffer(make_quad(xx, yy, 1, 1, crc.row, crc.col, 1));
+        }
+    }
+    if (state.status == MOVING_PLAYER || state.status == MOVING_OPPONENT) {
+        float pct_moved = stm_ms(state.event_time) / move_time_ms;
+        float eased = CubicEaseOut(pct_moved);
+        float xx = (float)state.cur_move.from.x + ((float)(state.cur_move.to.x - state.cur_move.from.x) * eased);
+        float yy = (float)state.cur_move.from.y + ((float)(state.cur_move.to.y - state.cur_move.from.y) * eased);
+        crc = tile_id_to_row_col(state.cur_move.piece_id);
+        add_quad_to_buffer(make_quad(xx, yy, 1, 1, crc.row, crc.col, 3));
+    } else if (state.status == AWAITING_MOVE) {
+        if (state.input.tile_clicked.x >= 0 && state.input.tile_clicked.x < 8 && state.input.tile_clicked.y >= 0 && state.input.tile_clicked.y < 8) {
+            crc = tile_id_to_row_col(HIGHLIGHT);
+            add_quad_to_buffer(make_quad(state.input.tile_clicked.x, state.input.tile_clicked.y, 1, 1, crc.row, crc.col, 2));
+        }
+        for (int j=0; j<state.game.avail_len; j++) {
+            crc = tile_id_to_row_col(DOT);
+            add_quad_to_buffer(make_quad(state.game.avail[j].x, state.game.avail[j].y, 1, 1, crc.row, crc.col, 2));
         }
     }
 
@@ -889,7 +909,6 @@ static void frame(void) {
     sg_range irange = { state.indices, state.iidx * sizeof(uint16_t) };
     sg_update_buffer(state.bind.vertex_buffers[0], &vrange);
     sg_update_buffer(state.bind.index_buffer, &irange);
-
 
     vs_params_t vs_params;
     vs_params.mvp = state.mvp;
@@ -909,16 +928,43 @@ static void cleanup(void) {
     sg_shutdown();
     free(state.verts);
     free(state.indices);
-    free(state.tile_idxs);
-    free_tiles(state.tiles);
-    //free(state.g.locs);
-    //free(state.elist.loc_indices);
+    utarray_free(state.game.moves);
+    free(state.opening_buf);
 }
 
 static void event_handler(const sapp_event* ev) {
     simgui_handle_event(ev);
     if (!ev) return;
-    bool key_pressed = (ev->type == SAPP_EVENTTYPE_KEY_DOWN);
+
+    const bool mouse_scrolled = (ev->type == SAPP_EVENTTYPE_MOUSE_SCROLL);
+    if (mouse_scrolled) {
+        state.input.scroll_amt = ev->scroll_y;
+    }
+    if (ev->type == SAPP_EVENTTYPE_MOUSE_DOWN) {
+        state.input.md_time = stm_now();
+        state.input.mouse_down = true;
+        state.input.mx = ev->mouse_x;
+        state.input.my = ev->mouse_y;
+        state.input.mdx = state.input.mx;
+        state.input.mdy = state.input.my;
+    }
+    if (ev->type == SAPP_EVENTTYPE_MOUSE_UP) {
+        float mxd = fabs(state.input.mdx - ev->mouse_x);
+        float myd = fabs(state.input.mdy - ev->mouse_y);
+        if (mxd < 10 && myd < 10) {
+            state.input.mcx = ev->mouse_x;
+            state.input.mcy = ev->mouse_y;
+            state.input.mouse_clicked = true;
+        }
+        state.input.mouse_down = false;
+        state.input.mx = ev->mouse_x;
+        state.input.my = ev->mouse_y;
+    }
+    if (ev->type == SAPP_EVENTTYPE_MOUSE_MOVE) {
+        state.input.mx = ev->mouse_x;
+        state.input.my = ev->mouse_y;
+    }
+    const bool key_pressed = (ev->type == SAPP_EVENTTYPE_KEY_DOWN);
     switch (ev->key_code) {
         case SAPP_KEYCODE_W:
         case SAPP_KEYCODE_UP: {
@@ -940,6 +986,22 @@ static void event_handler(const sapp_event* ev) {
             state.input.right = key_pressed;
             break;
         }
+        case SAPP_KEYCODE_O: {
+            state.input.zoom_in = key_pressed;
+            break;
+        }
+        case SAPP_KEYCODE_L: {
+            state.input.zoom_out = key_pressed;
+            break;
+        }
+        case SAPP_KEYCODE_V: {
+            if (key_pressed) {
+                if ((ev->modifiers & MODIFIER_KEY) == MODIFIER_KEY) {
+                    state.input.paste = true;
+                }
+            }
+            break;
+        }
         case SAPP_KEYCODE_ESCAPE: {
             state.input.esc = key_pressed;
             break;
@@ -952,17 +1014,20 @@ sapp_desc sokol_main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
     state.screen_w = 1280;
-    state.screen_h = 720;
+    state.screen_h = 800;
     return (sapp_desc){
         .init_cb = init,
         .frame_cb = frame,
         .cleanup_cb = cleanup,
         .event_cb = event_handler,
-        .window_title = "gaem",
+        .window_title = "chess",
         .width = state.screen_w,
         .height = state.screen_h,
-        .sample_count = 4,
+        .sample_count = 1,
         //.gl_force_gles2 = true,
+        //.high_dpi = true,
         .icon.sokol_default = true,
+        .enable_clipboard = true,
+        .clipboard_size = 16384,
     };
 }

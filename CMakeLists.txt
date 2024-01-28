@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
-project(colony)
+project(cow_chess)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
 # Linux -pthread shenanigans
@@ -30,7 +30,7 @@ set(SOKOL_HEADERS
     sokol/sokol_glue.h
     sokol/sokol_time.h)
 if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
-    add_library(sokol STATIC sokol/sokol.c ${SOKOL_HEADERS})
+    add_library(sokol STATIC sokol.c ${SOKOL_HEADERS})
     target_compile_options(sokol PRIVATE -x objective-c)
     target_link_libraries(sokol PUBLIC
         "-framework QuartzCore"
@@ -38,7 +38,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
         "-framework MetalKit"
         "-framework Metal")
 else()
-    add_library(sokol STATIC sokol/sokol.c ${SOKOL_HEADERS})
+    add_library(sokol STATIC sokol.c ${SOKOL_HEADERS})
     if (CMAKE_SYSTEM_NAME STREQUAL Linux)
         target_link_libraries(sokol INTERFACE X11 Xi Xcursor GL dl m)
         target_link_libraries(sokol PUBLIC Threads::Threads)
@@ -47,12 +47,22 @@ endif()
 target_link_libraries(sokol PUBLIC cimgui)
 target_include_directories(sokol INTERFACE sokol)
 
+set(SOURCES
+    game.c
+    uci.c
+    str.c
+    util.c
+    moves.c
+    chess_types.c
+    easing.c
+    data.c
+)
 #=== EXECUTABLE
 if(CMAKE_SYSTEM_NAME STREQUAL Windows)
-    add_executable(${PROJECT_NAME} WIN32 game.c misc_util.c)
+    add_executable(${PROJECT_NAME} WIN32 ${SOURCES})
     set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT hello)
 else()
-    add_executable(${PROJECT_NAME} game.c misc_util.c tile_defs.c map_defs.c IconsFontAwesome5.h)
+    add_executable(${PROJECT_NAME} ${SOURCES})
 endif()
 target_link_libraries(${PROJECT_NAME} sokol)
 
