@@ -615,11 +615,6 @@ static void init(void) {
     ImFontConfig_destroy(fontConfig);
     imgui_style();
 
-    // initial clear color
-    state.pass_action = (sg_pass_action) {
-        .colors[0] = { .load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.5f, 1.0f, 1.0f } }
-    };
-
     // binding for drawing the chess board
     state.bind_board.vertex_buffers[0] = sg_make_buffer(&(sg_buffer_desc){
         .size = bnum_verts * sizeof(vertex_g),
@@ -647,6 +642,8 @@ static void init(void) {
     stbi_image_free(bimage_data);
 
     state.bind_board.fs.samplers[SLOT_smp] = sg_make_sampler(&(sg_sampler_desc){
+        .min_filter = SG_FILTER_LINEAR,
+        .mag_filter = SG_FILTER_LINEAR,
         .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
         .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
         .wrap_w = SG_WRAP_CLAMP_TO_EDGE,
@@ -684,6 +681,8 @@ static void init(void) {
     state.sprite_rows = state.spritesheet_h / state.sprite_size;
 
     state.bind_pieces.fs.samplers[SLOT_smp] = sg_make_sampler(&(sg_sampler_desc){
+        .min_filter = SG_FILTER_LINEAR,
+        .mag_filter = SG_FILTER_LINEAR,
         .wrap_u = SG_WRAP_REPEAT,
         .wrap_v = SG_WRAP_REPEAT,
         .wrap_w = SG_WRAP_REPEAT,
@@ -721,9 +720,23 @@ static void init(void) {
         }
     });
 
-    /* default pass action */
+    /*
+    /* default pass action #1#
     state.pass_action = (sg_pass_action) {
         .colors[0] = { .load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.25f, 0.5f, 0.75f, 1.0f } }
+    };
+    // red
+    state.pass_action = (sg_pass_action) {
+        .colors[0] = { .load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.529f, 0.278f, 0.278f, 1.0f } }
+    };
+    // blue
+    state.pass_action = (sg_pass_action) {
+        .colors[0] = { .load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.290f, 0.463f, 0.561f, 1.0f } }
+    };
+    */
+    // green
+    state.pass_action = (sg_pass_action) {
+        .colors[0] = { .load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.255f, 0.482f, 0.435f, 1.0f } }
     };
 
     state.cx = 1;
