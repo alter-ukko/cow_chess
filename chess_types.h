@@ -23,18 +23,18 @@ typedef struct {
 
 typedef enum {
     NO_PIECE = -1,
-    ROOK = 0,
-    KNIGHT = 1,
+    KING = 0,
+    QUEEN = 1,
     BISHOP = 2,
-    QUEEN = 3,
-    KING = 4,
+    KNIGHT = 3,
+    ROOK = 4,
     PAWN = 5,
 } PieceType;
 
 typedef enum {
     NO_COLOR = -1,
     WHITE = 0,
-    BLACK = 9,
+    BLACK = 8,
 } PieceColor;
 
 typedef struct {
@@ -52,49 +52,52 @@ typedef struct {
     bool skip_check_check;
 } game_t;
 
-#define ROOK_W 0
-#define KNIGHT_W 1
-#define BISHOP_W 2
-#define QUEEN_W 3
-#define KING_W 4
-#define PAWN_W 5
-#define SQUARE_W 6
-#define SQUARE_PLAIN_W 7
-#define ROOK_B 9
-#define KNIGHT_B 10
-#define BISHOP_B 11
-#define QUEEN_B 12
-#define KING_B 13
-#define PAWN_B 14
-#define SQUARE_B 15
-#define SQUARE_PLAIN_B 16
-#define FRAME_TL 18
-#define FRAME_T 19
-#define FRAME_TR 20
-#define SHADOW 21
-#define FRAME_L 27
-#define FRAME_R 29
-#define DOT 30
-#define HIGHLIGHT 32
-#define FRAME_BL 36
-#define FRAME_B 37
-#define FRAME_BR 38
-#define LBL_1 45
-#define LBL_2 46
-#define LBL_3 47
-#define LBL_4 48
-#define LBL_5 49
-#define LBL_6 50
-#define LBL_7 51
-#define LBL_8 52
-#define LBL_A 54
-#define LBL_B 55
-#define LBL_C 56
-#define LBL_D 57
-#define LBL_E 58
-#define LBL_F 59
-#define LBL_G 60
-#define LBL_H 61
+#define KING_W 8
+#define QUEEN_W 9
+#define BISHOP_W 10
+#define KNIGHT_W 11
+#define ROOK_W 12
+#define PAWN_W 13
+#define DOT 14
+#define KING_B 24
+#define QUEEN_B 25
+#define BISHOP_B 26
+#define KNIGHT_B 27
+#define ROOK_B 28
+#define PAWN_B 29
+#define HIGHLIGHT 30
+#define LBL_1_DK 32
+#define LBL_2_DK 33
+#define LBL_3_DK 34
+#define LBL_4_DK 35
+#define LBL_5_DK 36
+#define LBL_6_DK 37
+#define LBL_7_DK 38
+#define LBL_8_DK 39
+#define LBL_1_LT 40
+#define LBL_2_LT 41
+#define LBL_3_LT 42
+#define LBL_4_LT 43
+#define LBL_5_LT 44
+#define LBL_6_LT 45
+#define LBL_7_LT 46
+#define LBL_8_LT 47
+#define LBL_A_DK 48
+#define LBL_B_DK 49
+#define LBL_C_DK 50
+#define LBL_D_DK 51
+#define LBL_E_DK 52
+#define LBL_F_DK 53
+#define LBL_G_DK 54
+#define LBL_H_DK 55
+#define LBL_A_LT 56
+#define LBL_B_LT 57
+#define LBL_C_LT 58
+#define LBL_D_LT 59
+#define LBL_E_LT 60
+#define LBL_F_LT 61
+#define LBL_G_LT 62
+#define LBL_H_LT 63
 
 extern const int initial_board[64];
 extern const char files[];

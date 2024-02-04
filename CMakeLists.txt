@@ -55,7 +55,9 @@ set(SOURCES
     moves.c
     chess_types.c
     easing.c
-    data.c
+    barlow_regular_ttf.c
+    pieces_png.c
+    board_png.c
 )
 #=== EXECUTABLE
 if(CMAKE_SYSTEM_NAME STREQUAL Windows)

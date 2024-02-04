@@ -55,9 +55,6 @@ const uint32_t MODIFIER_KEY = SAPP_MODIFIER_SUPER;
 const uint32_t MODIFIER_KEY = SAPP_MODIFIER_CTRL;
 #endif
 
-const uint32_t num_quads = 100000;
-const uint32_t num_verts = num_quads * 4;
-const uint32_t num_indices = num_quads * 6;
 const double move_time_ms = 500.0;
 
 typedef struct {
@@ -108,6 +105,13 @@ typedef struct {
     v2i tile_clicked;
 } input_g;
 
+typedef struct {
+    vertex_g *verts;
+    uint16_t *indices;
+    uint32_t vidx;
+    uint32_t iidx;
+} buffers_g;
+
 const u_int32_t DN = 0;
 const u_int32_t DL = 0x00000001;
 const u_int32_t DU = 0x00000002;
@@ -127,15 +131,14 @@ static struct {
     float rx, ry;
     sg_pass_action pass_action;
     sg_pipeline pip;
-    sg_bindings bind;
+    sg_bindings bind_pieces;
+    sg_bindings bind_board;
     float cx, cy;
     HMM_Vec3 cpos;
     HMM_Mat4 mvp;
     float sprites_across;
-    vertex_g *verts;
-    uint16_t *indices;
-    uint32_t vidx;
-    uint32_t iidx;
+    buffers_g pbuf;
+    buffers_g bbuf;
     input_g input;
     int build_item_idx;
     int spritesheet_w;
@@ -154,12 +157,54 @@ static struct {
     char *opening_buf;
 } state;
 
+void draw_board() {
+    state.bbuf.vidx = 0;
+    state.bbuf.iidx = 0;
+    uint16_t uvw_unit = 32767;
+    uint16_t uvh_unit = 32767;
+    float xx = -0.5f;
+    float yy = -0.5f;
+    float zz = 0.0f;
+    float ww = 9.0f;
+    float hh = 9.0f;
+    quad_g q;
+    q.verts[0] = vertex( xx, yy, zz, 0xFFFFFFFF, 0, uvh_unit );
+    q.verts[1] = vertex( xx + ww, yy, zz, 0xFFFFFFFF, uvw_unit,  uvh_unit );
+    q.verts[2] = vertex( xx + ww, yy + hh, zz, 0xFFFFFFFF, uvw_unit,  0);
+    q.verts[3] = vertex( xx, yy + hh, zz, 0xFFFFFFFF, 0, 0);
+
+    q.indices[0] = 0;
+    q.indices[1] = 1;
+    q.indices[2] = 2;
+    q.indices[3] = 0;
+    q.indices[4] = 2;
+    q.indices[5] = 3;
+
+    uint32_t vi = state.bbuf.vidx;
+    uint32_t ii = state.bbuf.iidx;
+    state.bbuf.verts[vi] = q.verts[0];
+    state.bbuf.verts[vi + 1] = q.verts[1];
+    state.bbuf.verts[vi + 2] = q.verts[2];
+    state.bbuf.verts[vi + 3] = q.verts[3];
+
+    uint32_t uvi = vi;
+    state.bbuf.indices[ii] = q.indices[0] + uvi;
+    state.bbuf.indices[ii + 1] = q.indices[1] + uvi;
+    state.bbuf.indices[ii + 2] = q.indices[2] + uvi;
+    state.bbuf.indices[ii + 3] = q.indices[3] + uvi;
+    state.bbuf.indices[ii + 4] = q.indices[4] + uvi;
+    state.bbuf.indices[ii + 5] = q.indices[5] + uvi;
+
+    state.bbuf.vidx = vi + 4;
+    state.bbuf.iidx = ii + 6;
+}
+
 // x,y: destination coords
 // w,h: width and height of sprite (in tiles)
-// row,col: the row and column of the sprite's bottom right corner
+// row,col: the row and column of the sprite's bottom left corner (?)
 quad_g make_quad(float x, float y, int w, int h, int row, int col, int layer) {
-    uint16_t uvw_unit = (uint16_t)(32768 / state.sprite_cols);
-    uint16_t uvh_unit = (uint16_t)(32768 / state.sprite_rows);
+    uint16_t uvw_unit = (uint16_t)(32767 / state.sprite_cols);
+    uint16_t uvh_unit = (uint16_t)(32767 / state.sprite_rows);
     quad_g q;
     const float ww = (float)w;
     const float hh = (float)h;
@@ -183,23 +228,23 @@ quad_g make_quad(float x, float y, int w, int h, int row, int col, int layer) {
 }
 
 void add_quad_to_buffer(quad_g q) {
-    uint32_t vi = state.vidx;
-    uint32_t ii = state.iidx;
-    state.verts[vi] = q.verts[0];
-    state.verts[vi + 1] = q.verts[1];
-    state.verts[vi + 2] = q.verts[2];
-    state.verts[vi + 3] = q.verts[3];
+    uint32_t vi = state.pbuf.vidx;
+    uint32_t ii = state.pbuf.iidx;
+    state.pbuf.verts[vi] = q.verts[0];
+    state.pbuf.verts[vi + 1] = q.verts[1];
+    state.pbuf.verts[vi + 2] = q.verts[2];
+    state.pbuf.verts[vi + 3] = q.verts[3];
 
     uint32_t uvi = vi;
-    state.indices[ii] = q.indices[0] + uvi;
-    state.indices[ii + 1] = q.indices[1] + uvi;
-    state.indices[ii + 2] = q.indices[2] + uvi;
-    state.indices[ii + 3] = q.indices[3] + uvi;
-    state.indices[ii + 4] = q.indices[4] + uvi;
-    state.indices[ii + 5] = q.indices[5] + uvi;
+    state.pbuf.indices[ii] = q.indices[0] + uvi;
+    state.pbuf.indices[ii + 1] = q.indices[1] + uvi;
+    state.pbuf.indices[ii + 2] = q.indices[2] + uvi;
+    state.pbuf.indices[ii + 3] = q.indices[3] + uvi;
+    state.pbuf.indices[ii + 4] = q.indices[4] + uvi;
+    state.pbuf.indices[ii + 5] = q.indices[5] + uvi;
 
-    state.vidx = vi + 4;
-    state.iidx = ii + 6;
+    state.pbuf.vidx = vi + 4;
+    state.pbuf.iidx = ii + 6;
 }
 
 HMM_Mat4 ortho_camera_mat(HMM_Vec3 cpos, float pixels_per_sprite) {
@@ -525,8 +570,17 @@ static void init(void) {
     state.event_time = 0;
     state.opening_buf = malloc(16384);
 
-    state.verts = (vertex_g  *)malloc(num_verts * sizeof(vertex_g));
-    state.indices = (uint16_t *) malloc(num_indices * sizeof(uint16_t));
+    const uint32_t pnum_quads = 1000;
+    const uint32_t pnum_verts = pnum_quads * 4;
+    const uint32_t pnum_indices = pnum_quads * 6;
+    state.pbuf.verts = (vertex_g  *)malloc(pnum_verts * sizeof(vertex_g));
+    state.pbuf.indices = (uint16_t *) malloc(pnum_indices * sizeof(uint16_t));
+
+    const uint32_t bnum_quads = 1000;
+    const uint32_t bnum_verts = bnum_quads * 4;
+    const uint32_t bnum_indices = bnum_quads * 6;
+    state.bbuf.verts = (vertex_g  *)malloc(bnum_verts * sizeof(vertex_g));
+    state.bbuf.indices = (uint16_t *) malloc(bnum_indices * sizeof(uint16_t));
 
     sg_setup(&(sg_desc){ .context = sapp_sgcontext() });
     simgui_setup(&(simgui_desc_t){ .no_default_font = true });
@@ -566,40 +620,73 @@ static void init(void) {
         .colors[0] = { .load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.0f, 0.5f, 1.0f, 1.0f } }
     };
 
-    state.bind.vertex_buffers[0] = sg_make_buffer(&(sg_buffer_desc){
-        .size = num_verts * sizeof(vertex_g),
+    // binding for drawing the chess board
+    state.bind_board.vertex_buffers[0] = sg_make_buffer(&(sg_buffer_desc){
+        .size = bnum_verts * sizeof(vertex_g),
         .usage = SG_USAGE_DYNAMIC,
-        .label = "cube-vertices"
+        .label = "board-vertices"
     });
 
-    state.bind.index_buffer = sg_make_buffer(&(sg_buffer_desc){
+    state.bind_board.index_buffer = sg_make_buffer(&(sg_buffer_desc){
         .type = SG_BUFFERTYPE_INDEXBUFFER,
-        .size = num_indices * sizeof(uint16_t),
+        .size = bnum_indices * sizeof(uint16_t),
         .usage = SG_USAGE_DYNAMIC,
-        .label = "cube-indices"
+        .label = "board-indices"
     });
 
-    int tw,th,tn;
-    uint8_t *image_data = stbi_load_from_memory(__chess_png, __chess_png_len, &tw, &th, &tn, 0);
-    sg_range pixels = { .ptr = image_data, .size = tw * th * tn * sizeof(uint8_t) };
+    int btw,bth,btn;
+    uint8_t *bimage_data = stbi_load_from_memory(__board_png, __board_png_len, &btw, &bth, &btn, 0);
+    sg_range bpixels = { .ptr = bimage_data, .size = btw * bth * btn * sizeof(uint8_t) };
     // NOTE: SLOT_tex is provided by shader code generation
-    state.bind.fs.images[SLOT_tex] = sg_make_image(&(sg_image_desc){
-        .width = tw,
-        .height = th,
-        .data.subimage[0][0] = pixels,
-        .label = "cube-texture"
+    state.bind_board.fs.images[SLOT_tex] = sg_make_image(&(sg_image_desc){
+        .width = btw,
+        .height = bth,
+        .data.subimage[0][0] = bpixels,
+        .label = "board-texture"
     });
-    stbi_image_free(image_data);
-    state.spritesheet_w = tw;
-    state.spritesheet_h = th;
-    state.sprite_size = 15;
-    state.sprite_cols = state.spritesheet_w / state.sprite_size;
-    state.sprite_rows = state.spritesheet_h / state.sprite_size;
+    stbi_image_free(bimage_data);
 
-    state.bind.fs.samplers[SLOT_smp] = sg_make_sampler(&(sg_sampler_desc){
+    state.bind_board.fs.samplers[SLOT_smp] = sg_make_sampler(&(sg_sampler_desc){
         .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
         .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
         .wrap_w = SG_WRAP_CLAMP_TO_EDGE,
+    });
+
+    // binding for drawing the chess pieces
+    state.bind_pieces.vertex_buffers[0] = sg_make_buffer(&(sg_buffer_desc){
+        .size = pnum_verts * sizeof(vertex_g),
+        .usage = SG_USAGE_DYNAMIC,
+        .label = "pieces-vertices"
+    });
+
+    state.bind_pieces.index_buffer = sg_make_buffer(&(sg_buffer_desc){
+        .type = SG_BUFFERTYPE_INDEXBUFFER,
+        .size = pnum_indices * sizeof(uint16_t),
+        .usage = SG_USAGE_DYNAMIC,
+        .label = "pieces-indices"
+    });
+
+    int ptw,pth,ptn;
+    uint8_t *pimage_data = stbi_load_from_memory(__pieces_png, __pieces_png_len, &ptw, &pth, &ptn, 0);
+    sg_range ppixels = { .ptr = pimage_data, .size = ptw * pth * ptn * sizeof(uint8_t) };
+    // NOTE: SLOT_tex is provided by shader code generation
+    state.bind_pieces.fs.images[SLOT_tex] = sg_make_image(&(sg_image_desc){
+        .width = ptw,
+        .height = pth,
+        .data.subimage[0][0] = ppixels,
+        .label = "pieces-texture"
+    });
+    stbi_image_free(pimage_data);
+    state.spritesheet_w = ptw;
+    state.spritesheet_h = pth;
+    state.sprite_size = 80;
+    state.sprite_cols = state.spritesheet_w / state.sprite_size;
+    state.sprite_rows = state.spritesheet_h / state.sprite_size;
+
+    state.bind_pieces.fs.samplers[SLOT_smp] = sg_make_sampler(&(sg_sampler_desc){
+        .wrap_u = SG_WRAP_REPEAT,
+        .wrap_v = SG_WRAP_REPEAT,
+        .wrap_w = SG_WRAP_REPEAT,
     });
 
     /* a shader */
@@ -622,7 +709,7 @@ static void init(void) {
             .write_enabled = true
         },
         .face_winding = SG_FACEWINDING_CW,
-        .label = "cube-pipeline",
+        .label = "pipeline",
         .colors = {
             [0].blend = {
                 .enabled = true,
@@ -645,6 +732,14 @@ static void init(void) {
     state.input.tile_clicked.y = -1;
     state.sprites_across = 16.0f;
     compute_mvp();
+
+    draw_board();
+    sg_range bvrange = { state.bbuf.verts, state.bbuf.vidx * sizeof(vertex_g) };
+    sg_range birange = { state.bbuf.indices, state.bbuf.iidx * sizeof(uint16_t) };
+    sg_update_buffer(state.bind_board.vertex_buffers[0], &bvrange);
+    sg_update_buffer(state.bind_board.index_buffer, &birange);
+
+
     init_board();
     UT_icd move_icd = {sizeof(move_t), NULL, NULL, NULL};
     utarray_new(state.game.moves, &move_icd);
@@ -845,79 +940,78 @@ static void frame(void) {
         //int tile_id = tile_id_at(v.x, v.y);
     }
 
-    int color = 0;
-    state.vidx = 0;
-    state.iidx = 0;
-    for (int y=0; y<8; y++) {
-        color = (y + 1) % 2;
-        for (int x=0; x<8; x++) {
-            const v2i rc = tile_id_to_row_col((color == 0) ? SQUARE_B : SQUARE_W);
-            add_quad_to_buffer(make_quad(x, y, 1, 1, rc.row, rc.col, 0));
-            color = (color + 1) % 2;
+    v2i crc;
+    state.pbuf.vidx = 0;
+    state.pbuf.iidx = 0;
+
+    if (state.status == AWAITING_MOVE) {
+        if (state.input.tile_clicked.x >= 0 && state.input.tile_clicked.x < 8 && state.input.tile_clicked.y >= 0 && state.input.tile_clicked.y < 8) {
+            crc = tile_id_to_row_col(HIGHLIGHT);
+            add_quad_to_buffer(make_quad(state.input.tile_clicked.x, state.input.tile_clicked.y, 1, 1, crc.row, crc.col, 1));
         }
     }
-    v2i crc = tile_id_to_row_col(FRAME_TL);
-    add_quad_to_buffer(make_quad(-1, 8, 1, 1, crc.row, crc.col, 0));
-    crc = tile_id_to_row_col(FRAME_TR);
-    add_quad_to_buffer(make_quad(8, 8, 1, 1, crc.row, crc.col, 0));
-    crc = tile_id_to_row_col(FRAME_BL);
-    add_quad_to_buffer(make_quad(-1, -1, 1, 1, crc.row, crc.col, 0));
-    crc = tile_id_to_row_col(FRAME_BR);
-    add_quad_to_buffer(make_quad(8, -1, 1, 1, crc.row, crc.col, 0));
-    for (int i=0; i<8; i++) {
-        crc = tile_id_to_row_col(FRAME_T);
-        add_quad_to_buffer(make_quad(i, 8, 1, 1, crc.row, crc.col, 0));
-        crc = tile_id_to_row_col(FRAME_B);
-        add_quad_to_buffer(make_quad(i, -1, 1, 1, crc.row, crc.col, 0));
-        crc = tile_id_to_row_col(FRAME_L);
-        add_quad_to_buffer(make_quad(-1, i, 1, 1, crc.row, crc.col, 0));
-        crc = tile_id_to_row_col(FRAME_R);
-        add_quad_to_buffer(make_quad(8, i, 1, 1, crc.row, crc.col, 0));
-        crc = tile_id_to_row_col(LBL_1 + i);
-        add_quad_to_buffer(make_quad(8, i, 1, 1, crc.row, crc.col, 0));
-        crc = tile_id_to_row_col(LBL_A + i);
-        add_quad_to_buffer(make_quad(i, -1, 1, 1, crc.row, crc.col, 0));
-    }
+
     for (int i=0; i<64; i++) {
         const int piece_id = state.game.board[i];
         if (piece_id >= 0) {
             const int xx = i % 8;
             const int yy = i / 8;
             crc = tile_id_to_row_col(piece_id);
-            add_quad_to_buffer(make_quad(xx, yy, 1, 1, crc.row, crc.col, 1));
+            add_quad_to_buffer(make_quad(xx, yy, 1, 2, crc.row, crc.col, 2));
         }
     }
+
+    int x = 0;
+    int y = 0;
+    int number_base = LBL_1_DK;
+    int letter_base = LBL_A_DK;
+    for (y=0; y<8; y++) {
+        int color_inc = ( 1 - ((y + x) % 2)) * 8;
+        int sprite_id = (number_base + y) + color_inc;
+        crc = tile_id_to_row_col(sprite_id);
+        add_quad_to_buffer(make_quad(x, y, 1, 1, crc.row, crc.col, 3));
+    }
+    y = 0;
+    for (x=0; x<8; x++) {
+        int color_inc = ( 1 - ((y + x) % 2)) * 8;
+        int sprite_id = (letter_base + x) + color_inc;
+        crc = tile_id_to_row_col(sprite_id);
+        add_quad_to_buffer(make_quad(x, y, 1, 1, crc.row, crc.col, 3));
+    }
+
     if (state.status == MOVING_PLAYER || state.status == MOVING_OPPONENT) {
         float pct_moved = stm_ms(state.event_time) / move_time_ms;
         float eased = CubicEaseOut(pct_moved);
         float xx = (float)state.cur_move.from.x + ((float)(state.cur_move.to.x - state.cur_move.from.x) * eased);
         float yy = (float)state.cur_move.from.y + ((float)(state.cur_move.to.y - state.cur_move.from.y) * eased);
         crc = tile_id_to_row_col(state.cur_move.piece_id);
-        add_quad_to_buffer(make_quad(xx, yy, 1, 1, crc.row, crc.col, 3));
+        add_quad_to_buffer(make_quad(xx, yy, 1, 2, crc.row, crc.col, 5));
     } else if (state.status == AWAITING_MOVE) {
-        if (state.input.tile_clicked.x >= 0 && state.input.tile_clicked.x < 8 && state.input.tile_clicked.y >= 0 && state.input.tile_clicked.y < 8) {
-            crc = tile_id_to_row_col(HIGHLIGHT);
-            add_quad_to_buffer(make_quad(state.input.tile_clicked.x, state.input.tile_clicked.y, 1, 1, crc.row, crc.col, 2));
-        }
         for (int j=0; j<state.game.avail_len; j++) {
             crc = tile_id_to_row_col(DOT);
-            add_quad_to_buffer(make_quad(state.game.avail[j].x, state.game.avail[j].y, 1, 1, crc.row, crc.col, 2));
+            add_quad_to_buffer(make_quad(state.game.avail[j].x, state.game.avail[j].y, 1, 1, crc.row, crc.col, 3));
         }
     }
 
-    sg_range vrange = { state.verts, state.vidx * sizeof(vertex_g) };
-    sg_range irange = { state.indices, state.iidx * sizeof(uint16_t) };
-    sg_update_buffer(state.bind.vertex_buffers[0], &vrange);
-    sg_update_buffer(state.bind.index_buffer, &irange);
+    sg_range vrange = { state.pbuf.verts, state.pbuf.vidx * sizeof(vertex_g) };
+    sg_range irange = { state.pbuf.indices, state.pbuf.iidx * sizeof(uint16_t) };
+    sg_update_buffer(state.bind_pieces.vertex_buffers[0], &vrange);
+    sg_update_buffer(state.bind_pieces.index_buffer, &irange);
 
     vs_params_t vs_params;
     vs_params.mvp = state.mvp;
 
     sg_begin_default_pass(&state.pass_action, sapp_width(), sapp_height());
     sg_apply_pipeline(state.pip);
-    sg_apply_bindings(&state.bind);
+
     sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, &SG_RANGE(vs_params));
-    sg_draw(0, (int32_t)state.iidx, 1);
+
+    sg_apply_bindings(&state.bind_board);
+    sg_draw(0, (int32_t)state.bbuf.iidx, 1);
+
+    sg_apply_bindings(&state.bind_pieces);
+    sg_draw(0, (int32_t)state.pbuf.iidx, 1);
+
     simgui_render();
     sg_end_pass();
     sg_commit();
@@ -926,8 +1020,10 @@ static void frame(void) {
 static void cleanup(void) {
     simgui_shutdown();
     sg_shutdown();
-    free(state.verts);
-    free(state.indices);
+    free(state.pbuf.verts);
+    free(state.pbuf.indices);
+    free(state.bbuf.verts);
+    free(state.bbuf.indices);
     utarray_free(state.game.moves);
     free(state.opening_buf);
 }

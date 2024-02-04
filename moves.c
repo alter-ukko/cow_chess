@@ -5,8 +5,8 @@
 
 Piece sprite_to_piece(int sprite) {
     Piece p = {
-        .type = (sprite < 0) ? NO_PIECE : (sprite > 8) ? sprite - 9 : sprite,
-        .color = (sprite < 0) ? NO_COLOR : (sprite > 8) ? BLACK : WHITE
+        .type = (sprite < 0) ? NO_PIECE : (sprite > 23) ? sprite - 24 : sprite - 8,
+        .color = (sprite < 0) ? NO_COLOR : (sprite > 23) ? BLACK : WHITE
     };
     return p;
 };
@@ -36,9 +36,11 @@ void copy_game(game_t *game_copy, const game_t *game, bool skip_check_check) {
         move_t mc = { .from = {.x = m->from.x, .y = m->from.y}, .to = {.x = m->to.x, .y = m->to.y}, .piece_id = m->piece_id };
         utarray_push_back(game_copy->moves, &mc);
     }
+    /*
     if (utarray_len(game->moves) == 0) {
         printf("copied game has %d move and parent had %d\n", utarray_len(game_copy->moves), utarray_len(game->moves));
     }
+    */
 }
 
 void free_game(game_t *game) {
@@ -62,12 +64,12 @@ Piece piece_at(int board[64], int x, int y) {
 
 PieceColor color_at(int board[64], int x, int y) {
     const int sprite = board[(y * 8) + x];
-    return (sprite < 0) ? NO_COLOR : ((sprite > 8) ? BLACK : WHITE);
+    return (sprite < 0) ? NO_COLOR : ((sprite > 23) ? BLACK : WHITE);
 }
 
 PieceType type_at(int board[64], int x, int y) {
     const int sprite = board[(y * 8) + x];
-    return (sprite < 0) ? NO_PIECE : ((sprite > 8) ? sprite - 9 : sprite);
+    return (sprite < 0) ? NO_PIECE : ((sprite > 23) ? sprite - 24 : sprite - 8);
 }
 
 int find_king_idx(int board[64], PieceColor color) {
@@ -235,10 +237,10 @@ void knight_moves(game_t *game, v2i pos) {
         {.x = pos.x-1, .y = pos.y+2},
         {.x = pos.x+1, .y = pos.y+2},
         {.x = pos.x-1, .y = pos.y-2},
-        {.x = pos.x-1, .y = pos.y-2},
+        {.x = pos.x+1, .y = pos.y-2},
         {.x = pos.x+2, .y = pos.y+1},
-        {.x = pos.x+2, .y = pos.y-1},
         {.x = pos.x-2, .y = pos.y+1},
+        {.x = pos.x+2, .y = pos.y-1},
         {.x = pos.x-2, .y = pos.y-1},
     };
     for (int i=0; i<8; i++) {
@@ -444,7 +446,7 @@ bool can_pawn_move_en_passant(game_t *game, v2i pawn_pos, bool negative_x) {
     // on the last move the opposing pawn must have moved two spaces
     if (last_move->from.y != pawn_pos.y + (2 * dy)) return false;
     // the last move must have landed beside our pawn
-    int allowed_pawn_x = (negative_x ) ? pawn_pos.x - 1 : pawn_pos.x + 1;
+    int allowed_pawn_x = (negative_x) ? pawn_pos.x - 1 : pawn_pos.x + 1;
     if (last_move->from.x == allowed_pawn_x) {
         return true;
     }
